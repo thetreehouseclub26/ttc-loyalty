@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TTC Loyalty Program</title>
+<style>
+  /* ── PASTE YOUR WEB APP URL FROM GOOGLE APPS SCRIPT BELOW ── */
+  /* Find: const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyDOO_OXQqTm1hzjopPwRlYUkzMPUJ69sPXEZAa6tftLL7870ECpf16aGGIHFwXqSm8/exec';          */
+  /* Replace with your actual URL                               */
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F1F8E9; min-height: 100vh; }
+
+  .app { max-width: 420px; margin: 0 auto; padding: 0 0 40px; }
+
+  /* Header */
+  .header { background: #1B5E20; padding: 20px 20px 24px; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .header h1 { font-size: 20px; font-weight: 600; color: #fff; }
+  .header p { font-size: 12px; color: #A5D6A7; margin-top: 2px; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: #fff; }
+  .progress-wrap { background: rgba(255,255,255,0.2); border-radius: 20px; height: 6px; }
+  .progress-bar { background: #fff; border-radius: 20px; height: 6px; transition: width 0.5s; }
+  .progress-labels { display: flex; justify-content: space-between; margin-top: 6px; }
+  .progress-labels span { font-size: 11px; color: #A5D6A7; }
+
+  /* Body */
+  .body { padding: 16px; }
+
+  /* Cards */
+  .card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card-title { font-size: 11px; font-weight: 600; color: #78909C; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+
+  /* Stamp grid */
+  .stamp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .stamp-col { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .stamp { width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid #E0E0E0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #BDBDBD; background: #FAFAFA; }
+  .stamp.earned { background: #1B5E20; border-color: #1B5E20; color: #fff; }
+  .stamp.reward-pending { border: 2px dashed #E65100; color: #E65100; background: #FFF3E0; }
+  .stamp.reward-earned { background: #E65100; border-color: #E65100; color: #fff; }
+  .stamp.reward-claimed { background: #BDBDBD; border-color: #BDBDBD; color: #fff; font-size: 10px; }
+  .stamp-lbl { font-size: 9px; color: #90A4AE; text-align: center; }
+  .stamp-lbl.r { color: #E65100; font-weight: 600; }
+
+  /* Reward rows */
+  .reward-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #F5F5F5; }
+  .reward-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .r-num { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; margin-top: 1px; }
+  .r-locked { background: #F5F5F5; color: #BDBDBD; }
+  .r-earned { background: #E65100; color: #fff; }
+  .r-claimed { background: #E0E0E0; color: #9E9E9E; }
+  .r-title { font-size: 13px; font-weight: 600; color: #263238; }
+  .r-status { font-size: 11px; margin-top: 2px; }
+  .r-status.earned { color: #E65100; font-weight: 600; }
+  .r-status.claimed { color: #9E9E9E; }
+  .r-status.locked { color: #90A4AE; }
+
+  /* Member ID */
+  .member-id { text-align: center; font-size: 11px; color: #90A4AE; padding: 8px; }
+
+  /* Admin */
+  .admin-header { background: #1B5E20; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .admin-header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  .admin-badge { background: rgba(255,255,255,0.2); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px 16px; }
+  .stat { background: #fff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .stat-label { font-size: 10px; color: #78909C; margin-bottom: 4px; }
+  .stat-val { font-size: 24px; font-weight: 600; color: #263238; }
+  .tabs { display: flex; gap: 6px; padding: 0 16px 12px; overflow-x: auto; }
+  .tab { font-size: 12px; padding: 6px 14px; border: 1px solid #E0E0E0; border-radius: 20px; background: #fff; color: #78909C; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .tab.active { background: #1B5E20; border-color: #1B5E20; color: #fff; font-weight: 600; }
+  .panel { display: none; padding: 0 16px; }
+  .panel.active { display: block; }
+  .member-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #F5F5F5; }
+  .member-row:last-child { border-bottom: none; }
+  .m-avatar { width: 36px; height: 36px; border-radius: 50%; background: #E8F5E9; color: #1B5E20; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+  .m-name { font-size: 13px; font-weight: 600; color: #263238; }
+  .m-sub { font-size: 11px; color: #78909C; }
+  .m-stamps { display: flex; gap: 3px; margin-top: 4px; }
+  .ms { width: 13px; height: 13px; border-radius: 50%; border: 1px solid #E0E0E0; background: #FAFAFA; display: flex; align-items: center; justify-content: center; font-size: 6px; color: #BDBDBD; }
+  .ms.e { background: #1B5E20; border-color: #1B5E20; color: #fff; }
+  .ms.re { background: #E65100; border-color: #E65100; color: #fff; }
+  .ms.rc { background: #BDBDBD; border-color: #BDBDBD; color: #fff; }
+  .ms.r { border: 1px dashed #E65100; color: #E65100; background: #FFF3E0; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; display: inline-block; white-space: nowrap; }
+  .t-green { background: #E8F5E9; color: #1B5E20; }
+  .t-orange { background: #FFF3E0; color: #E65100; }
+  .t-gray { background: #F5F5F5; color: #78909C; }
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; color: #78909C; display: block; margin-bottom: 4px; font-weight: 500; }
+  .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid #E0E0E0; border-radius: 10px; font-size: 14px; background: #fff; color: #263238; outline: none; }
+  .field input:focus, .field select:focus { border-color: #1B5E20; }
+  .btn { display: block; width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #E0E0E0; background: #fff; color: #263238; font-size: 14px; cursor: pointer; text-align: center; margin-bottom: 8px; font-weight: 500; }
+  .btn-green { background: #1B5E20; border-color: #1B5E20; color: #fff; }
+  .btn-orange { background: #E65100; border-color: #E65100; color: #fff; }
+  .btn-sm { font-size: 11px; padding: 5px 12px; width: auto; display: inline-block; margin: 0; border-radius: 8px; }
+  .preview-stamps { display: flex; gap: 5px; flex-wrap: wrap; margin: 10px 0; }
+  .ps { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #E0E0E0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #BDBDBD; background: #FAFAFA; }
+  .ps.e { background: #1B5E20; border-color: #1B5E20; color: #fff; }
+  .ps.re { background: #E65100; border-color: #E65100; color: #fff; }
+  .ps.rc { background: #BDBDBD; border-color: #BDBDBD; color: #fff; font-size: 9px; }
+  .ps.r { border: 2px dashed #E65100; color: #E65100; background: #FFF3E0; }
+  .reward-alert { background: #FFF3E0; border-left: 4px solid #E65100; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #BF360C; margin: 8px 0; display: none; }
+  .search { width: 100%; padding: 10px 12px; border: 1px solid #E0E0E0; border-radius: 10px; font-size: 13px; background: #F9FBE7; margin-bottom: 10px; outline: none; }
+  .divider { height: 1px; background: #F5F5F5; margin: 12px 0; }
+  .claimable-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #F5F5F5; }
+  .claimable-item:last-child { border-bottom: none; }
+  .empty { text-align: center; padding: 24px; color: #90A4AE; font-size: 13px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1B5E20; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 13px; font-weight: 500; display: none; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; }
+
+  /* Loading */
+  .loading { text-align: center; padding: 40px 20px; color: #78909C; }
+  .spinner { width: 32px; height: 32px; border: 3px solid #E8F5E9; border-top-color: #1B5E20; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Login screen */
+  .login-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; background: #F1F8E9; }
+  .login-card { background: #fff; border-radius: 20px; padding: 32px 24px; width: 100%; max-width: 340px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+  .login-logo { text-align: center; margin-bottom: 24px; }
+  .login-logo h1 { font-size: 22px; font-weight: 700; color: #1B5E20; }
+  .login-logo p { font-size: 13px; color: #78909C; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIGURATION — Replace with your Apps Script URL
+// ══════════════════════════════════════════════════
+const SHEET_URL = 'YOUR_WEB_APP_URL_HERE';
+
+// ══════════════════════════════════════════════════
+// REWARDS CONFIGURATION
+// ══════════════════════════════════════════════════
+const REWARDS = {
+  3:  { title: 'Free Iced Coffee',                    short: 'Iced coffee' },
+  6:  { title: 'Free 1-hr Play + Tomato Soup',        short: '1-hr play + soup' },
+  9:  { title: 'Free Refresher + White Chicken Ball', short: 'Refresher + chicken ball' },
+  10: { title: 'Free 2-hr Play OR 1 Coffee + 1 Meal', short: '2-hr play / coffee + meal' },
+};
+const REWARD_STAMPS = [3, 6, 9, 10];
+const MAX_STAMPS = 10;
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let members = [];
+let currentMemberId = null;
+const urlParams = new URLSearchParams(window.location.search);
+const isAdmin = urlParams.get('admin') === 'true';
+const memberParam = urlParams.get('member');
+
+// ══════════════════════════════════════════════════
+// API CALLS
+// ══════════════════════════════════════════════════
+async function api(params) {
+  const url = SHEET_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════
+function ini(name) {
+  return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+}
+
+function toast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || '#1B5E20';
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2800);
+}
+
+function pendingRewards(m) {
+  return REWARD_STAMPS.filter(s => m.stamps >= s && !m.claimed.includes(s));
+}
+
+function renderMiniStamps(m) {
+  let h = '';
+  for (let i = 1; i <= MAX_STAMPS; i++) {
+    const isR = REWARD_STAMPS.includes(i), e = i <= m.stamps, c = m.claimed.includes(i);
+    if (isR && e && !c) h += `<div class="ms re">★</div>`;
+    else if (isR && e && c) h += `<div class="ms rc">✓</div>`;
+    else if (isR && !e) h += `<div class="ms r">★</div>`;
+    else if (e) h += `<div class="ms e">✓</div>`;
+    else h += `<div class="ms"></div>`;
+  }
+  return h;
+}
+
+// ══════════════════════════════════════════════════
+// MEMBER VIEW
+// ══════════════════════════════════════════════════
+function renderMemberView(m) {
+  const pct = Math.round((m.stamps / MAX_STAMPS) * 100);
+  let stampsHtml = '';
+  for (let i = 1; i <= MAX_STAMPS; i++) {
+    const isR = REWARD_STAMPS.includes(i), e = i <= m.stamps, c = m.claimed.includes(i);
+    let cls, icon;
+    if (isR && e && !c) { cls = 'stamp reward-earned'; icon = '★'; }
+    else if (isR && e && c) { cls = 'stamp reward-claimed'; icon = '✓'; }
+    else if (isR && !e) { cls = 'stamp reward-pending'; icon = '★'; }
+    else if (e) { cls = 'stamp earned'; icon = '✓'; }
+    else { cls = 'stamp'; icon = i; }
+    stampsHtml += `<div class="stamp-col">
+      <div class="${cls}">${icon}</div>
+      <div class="stamp-lbl${isR ? ' r' : ''}">${isR ? 'gift' : ''}</div>
+    </div>`;
+  }
+
+  const rewardsHtml = Object.entries(REWARDS).map(([s, r]) => {
+    const sn = parseInt(s), e = m.stamps >= sn, c = m.claimed.includes(sn);
+    let numCls, statusCls, statusText;
+    if (c) { numCls = 'r-claimed'; statusCls = 'claimed'; statusText = 'Claimed'; }
+    else if (e) { numCls = 'r-earned'; statusCls = 'earned'; statusText = 'Ready to claim — show this to staff'; }
+    else { numCls = 'r-locked'; statusCls = 'locked'; statusText = (sn - m.stamps) + ' more visit' + (sn - m.stamps !== 1 ? 's' : '') + ' to go'; }
+    return `<div class="reward-row">
+      <div class="r-num ${numCls}">${s}</div>
+      <div>
+        <div class="r-title">${r.title}</div>
+        <div class="r-status ${statusCls}">${statusText}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `
+    <div class="app">
+      <div class="header">
+        <div class="header-top">
+          <div>
+            <h1>The Treehouse Club</h1>
+            <p>Member since ${m.joined}${m.child ? ' · Child: ' + m.child : ''}</p>
+          </div>
+          <div class="avatar">${ini(m.name)}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600;color:#fff;">${m.name}</span>
+          <span style="font-size:12px;color:#A5D6A7;">${m.stamps}/${MAX_STAMPS} stamps</span>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
+      </div>
+      <div class="body">
+        <div class="card">
+          <div class="card-title">Your stamp card</div>
+          <div class="stamp-grid">${stampsHtml}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Your rewards</div>
+          ${rewardsHtml}
+        </div>
+        <div class="member-id">${m.id} · Minimum spend applies per visit</div>
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// ADMIN VIEW
+// ══════════════════════════════════════════════════
+function renderAdmin() {
+  const total = members.length;
+  const full = members.filter(m => m.stamps >= MAX_STAMPS).length;
+  const stamps = members.reduce((a, m) => a + m.stamps, 0);
+  const claimed = members.reduce((a, m) => a + m.claimed.length, 0);
+
+  document.getElementById('app').innerHTML = `
+    <div class="admin-header">
+      <div><h1>TTC Admin</h1><p style="font-size:11px;color:#A5D6A7;">Loyalty Program</p></div>
+      <div class="admin-badge">Staff access</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Members</div><div class="stat-val">${total}</div></div>
+      <div class="stat"><div class="stat-label">Full cards</div><div class="stat-val">${full}</div></div>
+      <div class="stat"><div class="stat-label">Stamps given</div><div class="stat-val">${stamps}</div></div>
+      <div class="stat"><div class="stat-label">Rewards claimed</div><div class="stat-val">${claimed}</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="adminTab('members',this)">Members</button>
+      <button class="tab" onclick="adminTab('stamp',this)">Give stamp</button>
+      <button class="tab" onclick="adminTab('claim',this)">Claim reward</button>
+      <button class="tab" onclick="adminTab('add',this)">Add member</button>
+    </div>
+    <div id="panel-members" class="panel active">${renderMemberList()}</div>
+    <div id="panel-stamp" class="panel">
+      <div class="card">
+        <div class="card-title">Give a stamp</div>
+        <div class="field"><label>Select member</label><select id="stamp-sel" onchange="previewStamps()">${memberOptions()}</select></div>
+        <div id="stamp-preview-wrap" style="display:none;">
+          <div class="card-title" style="margin-bottom:6px;">Current card</div>
+          <div class="preview-stamps" id="stamp-preview"></div>
+          <div id="reward-alert" class="reward-alert"></div>
+        </div>
+        <button class="btn btn-green" onclick="giveStamp()">Give stamp for this visit</button>
+      </div>
+    </div>
+    <div id="panel-claim" class="panel">
+      <div class="card">
+        <div class="card-title">Claim a reward</div>
+        <div class="field"><label>Select member</label><select id="claim-sel" onchange="showClaimable()">${memberOptions()}</select></div>
+        <div id="claimable-list"></div>
+      </div>
+    </div>
+    <div id="panel-add" class="panel">
+      <div class="card">
+        <div class="card-title">Register new member</div>
+        <div class="field"><label>Full name *</label><input id="n-name" type="text" placeholder="e.g. Maria Santos"></div>
+        <div class="field"><label>Phone number *</label><input id="n-phone" type="tel" placeholder="e.g. 09171234567"></div>
+        <div class="field"><label>Email (optional)</label><input id="n-email" type="email" placeholder="e.g. maria@email.com"></div>
+        <div class="field"><label>Child's name (optional)</label><input id="n-child" type="text" placeholder="e.g. Lena"></div>
+        <button class="btn btn-green" onclick="addMember()">Register member</button>
+      </div>
+      <p style="font-size:11px;color:#90A4AE;text-align:center;padding:0 16px;">After registering, share their unique link via Messenger or SMS</p>
+    </div>`;
+}
+
+function renderMemberList(filter) {
+  const list = filter ? members.filter(m => m.name.toLowerCase().includes(filter.toLowerCase()) || m.phone.includes(filter)) : members;
+  if (!list.length) return '<div class="empty">No members found</div>';
+  return `<input class="search" placeholder="Search by name or phone..." oninput="filterMembers(this.value)">
+    <div class="card" style="padding:10px 14px;">
+      ${list.map(m => {
+        const pending = pendingRewards(m);
+        return `<div class="member-row">
+          <div class="m-avatar">${ini(m.name)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="m-name">${m.name}</div>
+            <div class="m-sub">${m.id} · ${m.phone}${m.child ? ' · ' + m.child : ''}</div>
+            <div class="m-stamps">${renderMiniStamps(m)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+            <span class="tag ${m.stamps >= MAX_STAMPS ? 't-orange' : 't-green'}">${m.stamps}/${MAX_STAMPS}</span>
+            ${pending.length ? `<span class="tag t-orange">${pending.length} ready</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function memberOptions() {
+  return '<option value="">Choose member...</option>' +
+    members.map(m => `<option value="${m.id}">${m.name} — ${m.stamps}/${MAX_STAMPS}${pendingRewards(m).length ? ' ★ reward ready' : ''}</option>`).join('');
+}
+
+function adminTab(tab, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  btn.classList.add('active');
+}
+
+function filterMembers(q) {
+  document.querySelector('.card').outerHTML;
+  const panel = document.getElementById('panel-members');
+  panel.innerHTML = renderMemberList(q);
+}
+
+function previewStamps() {
+  const id = document.getElementById('stamp-sel').value;
+  const m = members.find(x => x.id === id);
+  const wrap = document.getElementById('stamp-preview-wrap');
+  const alert = document.getElementById('reward-alert');
+  if (!m) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  let h = '';
+  for (let i = 1; i <= MAX_STAMPS; i++) {
+    const isR = REWARD_STAMPS.includes(i), e = i <= m.stamps, c = m.claimed.includes(i);
+    if (isR && e && !c) h += `<div class="ps re">★</div>`;
+    else if (isR && e && c) h += `<div class="ps rc">✓</div>`;
+    else if (isR && !e) h += `<div class="ps r">★</div>`;
+    else if (e) h += `<div class="ps e">✓</div>`;
+    else h += `<div class="ps">${i}</div>`;
+  }
+  document.getElementById('stamp-preview').innerHTML = h;
+  const next = m.stamps + 1;
+  if (REWARD_STAMPS.includes(next) && !m.claimed.includes(next) && m.stamps < MAX_STAMPS) {
+    alert.style.display = 'block';
+    alert.textContent = 'Next stamp unlocks: ' + REWARDS[next].title;
+  } else { alert.style.display = 'none'; }
+}
+
+async function giveStamp() {
+  const id = document.getElementById('stamp-sel').value;
+  const m = members.find(x => x.id === id);
+  if (!m) { toast('Please select a member', '#555'); return; }
+  if (m.stamps >= MAX_STAMPS) { toast('Card is already full!', '#E65100'); return; }
+  try {
+    const res = await api({ action: 'giveStamp', id });
+    if (res.success) {
+      m.stamps = res.stamps;
+      const hit = REWARD_STAMPS.includes(m.stamps) && !m.claimed.includes(m.stamps);
+      previewStamps();
+      if (hit) toast('Stamp ' + m.stamps + ' — reward unlocked: ' + REWARDS[m.stamps].title + '!', '#E65100');
+      else toast('Stamp given! ' + m.name + ' now has ' + m.stamps + '/' + MAX_STAMPS);
+    } else { toast('Error: ' + res.error, '#c62828'); }
+  } catch(e) { toast('Connection error. Check your setup.', '#c62828'); }
+}
+
+function showClaimable() {
+  const id = document.getElementById('claim-sel').value;
+  const m = members.find(x => x.id === id);
+  const el = document.getElementById('claimable-list');
+  if (!m) { el.innerHTML = ''; return; }
+  const pending = pendingRewards(m);
+  if (!pending.length) {
+    el.innerHTML = '<p style="font-size:13px;color:#90A4AE;padding:12px 0;">No rewards ready to claim yet.</p>';
+    return;
+  }
+  el.innerHTML = '<div class="divider"></div>' + pending.map(s => `
+    <div class="claimable-item">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#263238;">Stamp ${s} — ${REWARDS[s].title}</div>
+        <div style="font-size:11px;color:#E65100;margin-top:2px;">Ready to claim</div>
+      </div>
+      <button class="btn btn-orange btn-sm" onclick="claimReward('${m.id}',${s})">Claim</button>
+    </div>`).join('');
+}
+
+async function claimReward(mid, stamp) {
+  const m = members.find(x => x.id === mid);
+  if (!m) return;
+  try {
+    const res = await api({ action: 'claimReward', id: mid, stamp });
+    if (res.success) {
+      m.claimed = res.claimed;
+      toast('Reward claimed for ' + m.name + '!', '#E65100');
+      showClaimable();
+    } else { toast('Error: ' + res.error, '#c62828'); }
+  } catch(e) { toast('Connection error.', '#c62828'); }
+}
+
+async function addMember() {
+  const name = document.getElementById('n-name').value.trim();
+  const phone = document.getElementById('n-phone').value.trim();
+  if (!name || !phone) { toast('Name and phone are required', '#555'); return; }
+  try {
+    const res = await api({ action: 'addMember', name, phone, child: document.getElementById('n-child').value.trim() });
+    if (res.success) {
+      members.push({ id: res.id, name, phone, child: document.getElementById('n-child').value.trim(), joined: res.joined, stamps: 0, claimed: [] });
+      ['n-name','n-phone','n-email','n-child'].forEach(id => document.getElementById(id).value = '');
+      toast(name + ' registered as ' + res.id + '!');
+      renderAdmin();
+    } else { toast('Error: ' + res.error, '#c62828'); }
+  } catch(e) { toast('Connection error.', '#c62828'); }
+}
+
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+async function init() {
+  document.getElementById('app').innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading TTC Loyalty...</p>
+    </div>`;
+
+  if (SHEET_URL === 'YOUR_WEB_APP_URL_HERE') {
+    document.getElementById('app').innerHTML = `
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="login-logo"><h1>🌳 TTC Loyalty</h1><p>Setup required</p></div>
+          <p style="font-size:13px;color:#455A64;line-height:1.6;">The Google Sheets URL has not been configured yet. Please follow the setup guide to connect this app to your Google Sheet, then replace <strong>YOUR_WEB_APP_URL_HERE</strong> in the code with your Apps Script URL.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  try {
+    if (isAdmin) {
+      const res = await api({ action: 'getAll' });
+      if (res.success) { members = res.members; renderAdmin(); }
+      else { toast('Could not load members: ' + res.error, '#c62828'); }
+    } else if (memberParam) {
+      const res = await api({ action: 'getMember', id: memberParam });
+      if (res.success) { renderMemberView(res.member); }
+      else {
+        document.getElementById('app').innerHTML = `
+          <div class="login-wrap">
+            <div class="login-card">
+              <div class="login-logo"><h1>🌳 TTC Loyalty</h1><p>Member not found</p></div>
+              <p style="font-size:13px;color:#455A64;text-align:center;">We couldn&#39;t find your membership. Please contact The Treehouse Club for help.</p>
+            </div>
+          </div>`;
+      }
+    } else {
+      document.getElementById('app').innerHTML = `
+        <div class="login-wrap">
+          <div class="login-card">
+            <div class="login-logo"><h1>🌳 The Treehouse Club</h1><p>Loyalty Program</p></div>
+            <p style="font-size:13px;color:#455A64;line-height:1.6;text-align:center;">Please use your personal membership link to view your stamp card, or ask a staff member to look you up.</p>
+          </div>
+        </div>`;
+    }
+  } catch(e) {
+    document.getElementById('app').innerHTML = `
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="login-logo"><h1>🌳 TTC Loyalty</h1><p>Connection error</p></div>
+          <p style="font-size:13px;color:#c62828;text-align:center;">Could not connect to the database. Please check your internet connection and try again.</p>
+        </div>
+      </div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
