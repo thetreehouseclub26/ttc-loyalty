@@ -111,6 +111,14 @@
   /* Toast */
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1B5E20; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 13px; font-weight: 500; display: none; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; }
 
+  /* Expiry banners */
+  .expiry-banner { border-radius: 10px; padding: 10px 14px; font-size: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .expiry-expired { background: #FFEBEE; color: #B71C1C; border-left: 4px solid #C62828; }
+  .expiry-soon { background: #FFF8E1; color: #E65100; border-left: 4px solid #F9A825; }
+  .expiry-ok { background: #E8F5E9; color: #1B5E20; border-left: 4px solid #2E7D32; }
+  .t-red { background: #FFEBEE; color: #C62828; }
+  .t-yellow { background: #FFF8E1; color: #E65100; }
+
   /* Loading */
   .loading { text-align: center; padding: 40px 20px; color: #78909C; }
   .spinner { width: 32px; height: 32px; border: 3px solid #E8F5E9; border-top-color: #1B5E20; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
@@ -184,6 +192,31 @@ function pendingRewards(m) {
   return REWARD_STAMPS.filter(s => m.stamps >= s && !m.claimed.includes(s));
 }
 
+// ── EXPIRY HELPERS ──────────────────────────────────
+function expiryDate(joined) {
+  // joined is stored as e.g. "4/7/2026" or "April 7, 2026" — parse safely
+  const d = new Date(joined);
+  if (isNaN(d)) return null;
+  return new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+}
+
+function expiryStatus(joined) {
+  const exp = expiryDate(joined);
+  if (!exp) return { status: 'unknown', label: 'Unknown expiry', daysLeft: null };
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffMs = exp - today;
+  const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return { status: 'expired', label: 'Expired', daysLeft, exp };
+  if (daysLeft <= 30) return { status: 'soon', label: `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, daysLeft, exp };
+  return { status: 'ok', label: `Valid until ${exp.toLocaleDateString('en-PH', {month:'short',day:'numeric',year:'numeric'})}`, daysLeft, exp };
+}
+
+function formatExpiry(joined) {
+  const exp = expiryDate(joined);
+  if (!exp) return 'Unknown';
+  return exp.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 function renderMiniStamps(m) {
   let h = '';
   for (let i = 1; i <= MAX_STAMPS; i++) {
@@ -202,6 +235,18 @@ function renderMiniStamps(m) {
 // ══════════════════════════════════════════════════
 function renderMemberView(m) {
   const pct = Math.round((m.stamps / MAX_STAMPS) * 100);
+  const exp = expiryStatus(m.joined);
+
+  // Expiry banner
+  let expiryBannerHtml = '';
+  if (exp.status === 'expired') {
+    expiryBannerHtml = `<div class="expiry-banner expiry-expired">⚠️ <span><strong>Membership expired</strong> — Please renew at the counter to continue earning stamps and rewards.</span></div>`;
+  } else if (exp.status === 'soon') {
+    expiryBannerHtml = `<div class="expiry-banner expiry-soon">⏳ <span><strong>${exp.label}</strong> — Visit the counter to renew your membership.</span></div>`;
+  } else {
+    expiryBannerHtml = `<div class="expiry-banner expiry-ok">✅ <span>Membership valid until <strong>${formatExpiry(m.joined)}</strong></span></div>`;
+  }
+
   let stampsHtml = '';
   for (let i = 1; i <= MAX_STAMPS; i++) {
     const isR = REWARD_STAMPS.includes(i), e = i <= m.stamps, c = m.claimed.includes(i);
@@ -249,6 +294,7 @@ function renderMemberView(m) {
         <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
       </div>
       <div class="body">
+        ${expiryBannerHtml}
         <div class="card">
           <div class="card-title">Your stamp card</div>
           <div class="stamp-grid">${stampsHtml}</div>
@@ -257,7 +303,7 @@ function renderMemberView(m) {
           <div class="card-title">Your rewards</div>
           ${rewardsHtml}
         </div>
-        <div class="member-id">${m.id} · Minimum spend applies per visit</div>
+        <div class="member-id">${m.id} · Membership expires ${formatExpiry(m.joined)} · Minimum spend applies per visit</div>
       </div>
     </div>`;
 }
@@ -270,6 +316,7 @@ function renderAdmin() {
   const full = members.filter(m => m.stamps >= MAX_STAMPS).length;
   const stamps = members.reduce((a, m) => a + m.stamps, 0);
   const claimed = members.reduce((a, m) => a + m.claimed.length, 0);
+  const expired = members.filter(m => expiryStatus(m.joined).status === 'expired').length;
 
   document.getElementById('app').innerHTML = `
     <div class="admin-header">
@@ -281,6 +328,7 @@ function renderAdmin() {
       <div class="stat"><div class="stat-label">Full cards</div><div class="stat-val">${full}</div></div>
       <div class="stat"><div class="stat-label">Stamps given</div><div class="stat-val">${stamps}</div></div>
       <div class="stat"><div class="stat-label">Rewards claimed</div><div class="stat-val">${claimed}</div></div>
+      ${expired > 0 ? `<div class="stat" style="border-left:3px solid #C62828;"><div class="stat-label" style="color:#C62828;">Expired memberships</div><div class="stat-val" style="color:#C62828;">${expired}</div></div>` : ''}
     </div>
     <div class="tabs">
       <button class="tab active" onclick="adminTab('members',this)">Members</button>
@@ -294,6 +342,7 @@ function renderAdmin() {
         <div class="card-title">Give a stamp</div>
         <div class="field"><label>Select member</label><select id="stamp-sel" onchange="previewStamps()">${memberOptions()}</select></div>
         <div id="stamp-preview-wrap" style="display:none;">
+          <div id="expiry-warn" class="reward-alert" style="display:none;border-left-color:#C62828;"></div>
           <div class="card-title" style="margin-bottom:6px;">Current card</div>
           <div class="preview-stamps" id="stamp-preview"></div>
           <div id="reward-alert" class="reward-alert"></div>
@@ -328,15 +377,23 @@ function renderMemberList(filter) {
     <div class="card" style="padding:10px 14px;">
       ${list.map(m => {
         const pending = pendingRewards(m);
+        const exp = expiryStatus(m.joined);
+        const expiryTag = exp.status === 'expired'
+          ? `<span class="tag t-red">Expired</span>`
+          : exp.status === 'soon'
+          ? `<span class="tag t-yellow">${exp.label}</span>`
+          : `<span class="tag t-green">Active</span>`;
         return `<div class="member-row">
           <div class="m-avatar">${ini(m.name)}</div>
           <div style="flex:1;min-width:0;">
             <div class="m-name">${m.name}</div>
             <div class="m-sub">${m.id} · ${m.phone}${m.child ? ' · ' + m.child : ''}</div>
+            <div class="m-sub">Expires: ${formatExpiry(m.joined)}</div>
             <div class="m-stamps">${renderMiniStamps(m)}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
             <span class="tag ${m.stamps >= MAX_STAMPS ? 't-orange' : 't-green'}">${m.stamps}/${MAX_STAMPS}</span>
+            ${expiryTag}
             ${pending.length ? `<span class="tag t-orange">${pending.length} ready</span>` : ''}
           </div>
         </div>`;
@@ -369,6 +426,21 @@ function previewStamps() {
   const alert = document.getElementById('reward-alert');
   if (!m) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
+
+  // Show expiry warning if applicable
+  const exp = expiryStatus(m.joined);
+  const expiryWarn = document.getElementById('expiry-warn');
+  if (exp.status === 'expired') {
+    expiryWarn.style.display = 'block';
+    expiryWarn.style.background = '#FFEBEE'; expiryWarn.style.color = '#B71C1C';
+    expiryWarn.textContent = '⚠️ Membership expired — renew before issuing stamps.';
+  } else if (exp.status === 'soon') {
+    expiryWarn.style.display = 'block';
+    expiryWarn.style.background = '#FFF8E1'; expiryWarn.style.color = '#E65100';
+    expiryWarn.textContent = '⏳ ' + exp.label + ' — remind member to renew.';
+  } else {
+    expiryWarn.style.display = 'none';
+  }
   let h = '';
   for (let i = 1; i <= MAX_STAMPS; i++) {
     const isR = REWARD_STAMPS.includes(i), e = i <= m.stamps, c = m.claimed.includes(i);
@@ -391,6 +463,10 @@ async function giveStamp() {
   const m = members.find(x => x.id === id);
   if (!m) { toast('Please select a member', '#555'); return; }
   if (m.stamps >= MAX_STAMPS) { toast('Card is already full!', '#E65100'); return; }
+  const exp = expiryStatus(m.joined);
+  if (exp.status === 'expired') {
+    toast('Membership expired — please renew before issuing stamps.', '#C62828'); return;
+  }
   try {
     const res = await api({ action: 'giveStamp', id });
     if (res.success) {
